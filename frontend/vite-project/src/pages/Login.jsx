@@ -15,15 +15,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 // Firebase Imports
-import { auth } from "../firebase/firebase.js";
+import { auth, db } from "@/firebase/firebase.js";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 const Login = () => {
   const [user, setUser] = useState({ email: "", password: "" });
-  const { loading, isAuthenticated, error } = useSelector(
-    (state) => state.user
-  );
-
+  const { loading, isAuthenticated, error } = useSelector((state) => state.user);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -37,9 +35,26 @@ const Login = () => {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      toast.success(`Welcome ${result.user.displayName}!`);
+      const firebaseUser = result.user;
+
+      // Reference to Firestore document for this user
+      const userDocRef = doc(db, "users", firebaseUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (!userDocSnap.exists()) {
+        // New user: register them in Firestore
+        await setDoc(userDocRef, {
+          uid: firebaseUser.uid,
+          name: firebaseUser.displayName,
+          email: firebaseUser.email,
+          photoURL: firebaseUser.photoURL,
+          createdAt: new Date(),
+        });
+      }
+      toast.success(`Welcome ${firebaseUser.displayName}!`);
       navigate("/home");
     } catch (error) {
+      console.error("Google sign-in failed:", error);
       toast.error("Google sign-in failed");
     }
   };
@@ -105,7 +120,9 @@ const Login = () => {
                 placeholder="m@example.com"
                 className="bg-gray-800 text-white placeholder-gray-400 border-gray-600"
                 value={user.email}
-                onChange={(e) => setUser({ ...user, email: e.target.value })}
+                onChange={(e) =>
+                  setUser({ ...user, email: e.target.value })
+                }
                 required
               />
             </div>
@@ -119,7 +136,9 @@ const Login = () => {
                 placeholder="Your password"
                 className="bg-gray-800 text-white placeholder-gray-400 border-gray-600"
                 value={user.password}
-                onChange={(e) => setUser({ ...user, password: e.target.value })}
+                onChange={(e) =>
+                  setUser({ ...user, password: e.target.value })
+                }
                 required
               />
             </div>
